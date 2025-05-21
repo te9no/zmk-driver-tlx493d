@@ -1,0 +1,12 @@
+rsource "drivers/Kconfig"
+rsource "drivers/sensor/tlx493d/Kconfig"
+
+menu "Sensor Drivers"
+
+config INPUT_TLX493D
+    bool "TLX493D 3D magnetic sensor driver"
+    depends on I2C
+    help
+      Enable driver for TLX493D 3D magnetic sensor
+
+endmenu

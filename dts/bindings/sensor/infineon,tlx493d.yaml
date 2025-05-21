@@ -1,0 +1,38 @@
+description: |
+  TLX493D 3D Magnetic Sensor
+  The TLX493D is a low power 3D magnetic sensor that provides
+  measurements for magnetic flux density in X, Y, and Z direction.
+
+compatible: "infineon,tlx493d"
+
+include: [i2c-device.yaml, sensor-device.yaml]
+
+properties:
+  reg:
+    required: true
+    description: I2C address of the sensor (default 0x0C)
+
+  int-gpios:
+    type: phandle-array
+    required: false
+    description: |
+      GPIO connected to the sensor's interrupt pin (active low).
+      Optional - if not specified, polling mode will be used.
+
+  power-mode:
+    type: string
+    required: false
+    default: "master"
+    enum:
+      - "master"
+      - "low-power"
+    description: |
+      Operating mode of the sensor:
+      - master: Master controlled mode (higher power, faster sampling)
+      - low-power: Low power mode (power saving, slower sampling)
+
+  temp-enable:
+    type: boolean
+    required: false
+    default: true
+    description: Enable temperature sensing

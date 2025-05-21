@@ -1,0 +1,8 @@
+# Copyright (c) 2024 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+config INPUT_TLX493D
+    bool "TLX493D 3D magnetic sensor"
+    depends on I2C
+    help
+      Enable driver for Infineon TLX493D 3D magnetic sensor
