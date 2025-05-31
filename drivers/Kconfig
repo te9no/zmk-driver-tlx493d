@@ -1,2 +1,1 @@
-rsource "input/Kconfig"
 rsource "sensor/Kconfig"
