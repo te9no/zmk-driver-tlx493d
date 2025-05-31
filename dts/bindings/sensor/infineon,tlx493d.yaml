@@ -34,5 +34,22 @@ properties:
   temp-enable:
     type: boolean
     required: false
-    default: true
     description: Enable temperature sensing
+
+  hysteresis:
+    type: int
+    required: false
+    default: 100
+    description: Hysteresis threshold in thousandths (100 = 0.1)
+
+  center-threshold:
+    type: int
+    required: false
+    default: 400
+    description: Center deadzone threshold in thousandths (400 = 0.4)
+
+  calibration-samples:
+    type: int
+    required: false
+    default: 300
+    description: Number of samples to take during calibration
