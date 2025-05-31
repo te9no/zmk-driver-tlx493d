@@ -32,12 +32,25 @@ LOG_MODULE_REGISTER(tlx493d, CONFIG_SENSOR_LOG_LEVEL);
 #define TLX493D_CONV_Z           0.13f
 #define TLX493D_CONV_TEMP        0.24f
 
+/* Calibration settings */
+#define TLX493D_CAL_SAMPLES    300
+#define TLX493D_HYSTERESIS     0.1f    // 10% hysteresis
+#define TLX493D_CENTER_THRESH  0.4f    // Center deadzone threshold
+
 struct tlx493d_data {
     const struct device *i2c_dev;
     int16_t x;
     int16_t y;
     int16_t z;
     int16_t temp;
+    /* Calibration offsets */
+    float x_offset;
+    float y_offset;
+    float z_offset;
+    /* Previous values for hysteresis */
+    float x_prev;
+    float y_prev;
+    float z_prev;
 };
 
 struct tlx493d_config {
@@ -72,22 +85,69 @@ static int tlx493d_sample_fetch(const struct device *dev, enum sensor_channel ch
     return tlx493d_read_data(dev);
 }
 
+static int tlx493d_calibrate(const struct device *dev)
+{
+    struct tlx493d_data *data = dev->data;
+    float x_sum = 0, y_sum = 0, z_sum = 0;
+
+    /* Collect samples for calibration */
+    for (int i = 0; i < TLX493D_CAL_SAMPLES; i++) {
+        if (tlx493d_read_data(dev) != 0) {
+            return -EIO;
+        }
+        x_sum += data->x;
+        y_sum += data->y;
+        z_sum += data->z;
+        k_msleep(10); // Delay between samples
+    }
+
+    /* Calculate offsets */
+    data->x_offset = x_sum / TLX493D_CAL_SAMPLES;
+    data->y_offset = y_sum / TLX493D_CAL_SAMPLES;
+    data->z_offset = z_sum / TLX493D_CAL_SAMPLES;
+
+    return 0;
+}
+
+static float apply_hysteresis(float current, float previous, float threshold)
+{
+    if (fabs(current - previous) < threshold) {
+        return previous;
+    }
+    return current;
+}
+
 static int tlx493d_channel_get(const struct device *dev,
                              enum sensor_channel chan,
                              struct sensor_value *val)
 {
     struct tlx493d_data *data = dev->data;
-    float value;
+    float value, calibrated_value;
 
     switch (chan) {
     case SENSOR_CHAN_MAGN_X:
-        value = data->x * TLX493D_CONV_XY;
+        calibrated_value = (data->x - data->x_offset) * TLX493D_CONV_XY;
+        value = apply_hysteresis(calibrated_value, data->x_prev, TLX493D_HYSTERESIS);
+        data->x_prev = value;
+        if (fabs(value) < TLX493D_CENTER_THRESH) {
+            value = 0;
+        }
         break;
     case SENSOR_CHAN_MAGN_Y:
-        value = data->y * TLX493D_CONV_XY;
+        calibrated_value = (data->y - data->y_offset) * TLX493D_CONV_XY;
+        value = apply_hysteresis(calibrated_value, data->y_prev, TLX493D_HYSTERESIS);
+        data->y_prev = value;
+        if (fabs(value) < TLX493D_CENTER_THRESH) {
+            value = 0;
+        }
         break;
     case SENSOR_CHAN_MAGN_Z:
-        value = data->z * TLX493D_CONV_Z;
+        calibrated_value = (data->z - data->z_offset) * TLX493D_CONV_Z;
+        value = apply_hysteresis(calibrated_value, data->z_prev, TLX493D_HYSTERESIS);
+        data->z_prev = value;
+        if (fabs(value) < TLX493D_CENTER_THRESH) {
+            value = 0;
+        }
         break;
     case SENSOR_CHAN_DIE_TEMP:
         value = data->temp * TLX493D_CONV_TEMP;
@@ -102,6 +162,7 @@ static int tlx493d_channel_get(const struct device *dev,
 static int tlx493d_init(const struct device *dev)
 {
     const struct tlx493d_config *config = dev->config;
+    struct tlx493d_data *data = dev->data;
     uint8_t id;
 
     if (!device_is_ready(config->i2c.bus)) {
@@ -119,6 +180,17 @@ static int tlx493d_init(const struct device *dev)
     if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD1, TLX493D_MOD1_MASTER) ||
         i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD2, TLX493D_MOD2_TEMP_EN)) {
         LOG_ERR("Failed to configure sensor");
+        return -EIO;
+    }
+
+    /* Initialize previous values */
+    data->x_prev = 0;
+    data->y_prev = 0;
+    data->z_prev = 0;
+
+    /* Perform initial calibration */
+    if (tlx493d_calibrate(dev) != 0) {
+        LOG_ERR("Calibration failed");
         return -EIO;
     }
 
