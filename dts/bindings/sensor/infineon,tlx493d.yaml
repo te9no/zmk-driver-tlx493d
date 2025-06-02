@@ -12,13 +12,6 @@ properties:
     required: true
     description: I2C address of the sensor (default 0x0C)
 
-  int-gpios:
-    type: phandle-array
-    required: false
-    description: |
-      GPIO connected to the sensor's interrupt pin (active low).
-      Optional - if not specified, polling mode will be used.
-
   power-mode:
     type: string
     required: false

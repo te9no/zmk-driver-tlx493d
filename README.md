@@ -37,7 +37,6 @@ Add the following to your device tree:
         compatible = "infineon,tlx493d";
         reg = <0x0C>;
         sensitivity = "1x";
-        int-gpios = <&gpio0 3 GPIO_ACTIVE_LOW>;
         hysteresis = <100>;           /* 0.1 = 10% hysteresis */
         center-threshold = <400>;     /* 0.4 = 40% center deadzone */
         calibration-samples = <300>;  /* Number of samples for calibration */
@@ -48,7 +47,6 @@ Add the following to your device tree:
 ### Configuration Options
 
 - `sensitivity`: Magnetic sensitivity ("1x", "2x", "4x")
-- `int-gpios`: Optional interrupt pin
 - `rotate-90`: Rotate sensor readings by 90 degrees
 - `hysteresis`: Hysteresis threshold in thousandths (default: 100 = 0.1)
 - `center-threshold`: Center deadzone threshold in thousandths (default: 400 = 0.4)
