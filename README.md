@@ -61,9 +61,9 @@ You can also configure the sensor behavior in your `prj.conf`:
 CONFIG_INPUT_TLX493D=y
 
 # Calibration settings
-CONFIG_TLX493D_CALIBRATION_SAMPLES=300    # Number of samples for calibration
-CONFIG_TLX493D_HYSTERESIS_THRESHOLD=100   # 0.1 = 10% hysteresis
-CONFIG_TLX493D_CENTER_THRESHOLD=400       # 0.4 = 40% center deadzone
+CONFIG_TLX493D_CALIBRATION_SAMPLES=300
+CONFIG_TLX493D_HYSTERESIS_THRESHOLD=100
+CONFIG_TLX493D_CENTER_THRESHOLD=400
 ```
 
 ### Using as an Analog Stick

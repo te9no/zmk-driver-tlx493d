@@ -1,2 +1,1 @@
-add_subdirectory_ifdef(CONFIG_INPUT input)
 add_subdirectory_ifdef(CONFIG_INPUT_TLX493D sensor)
