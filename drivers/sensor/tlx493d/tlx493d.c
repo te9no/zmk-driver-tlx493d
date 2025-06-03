@@ -201,16 +201,31 @@ static void sensor_timer_handler(struct k_work *work)
 {
     const struct device *dev = DEVICE_DT_GET_ANY(infineon_tlx493d);
     struct tlx493d_data *data = dev->data;
+    struct sensor_value val;
     
     // Read sensor data
     if (tlx493d_read_data(dev) == 0) {
-        float x = (data->x - data->x_offset) * TLX493D_CONV_XY;
-        float y = (data->y - data->y_offset) * TLX493D_CONV_XY;
-        float z = (data->z - data->z_offset) * TLX493D_CONV_Z;
-        float t = data->temp * TLX493D_CONV_TEMP;
+        // X値を取得
+        tlx493d_channel_get(dev, SENSOR_CHAN_MAGN_X, &val);
+        float x = sensor_value_to_double(&val);
+        
+        // Y値を取得
+        tlx493d_channel_get(dev, SENSOR_CHAN_MAGN_Y, &val);
+        float y = sensor_value_to_double(&val);
+        
+        // Z値を取得
+        tlx493d_channel_get(dev, SENSOR_CHAN_MAGN_Z, &val);
+        float z = sensor_value_to_double(&val);
+        
+        // 温度値を取得
+        tlx493d_channel_get(dev, SENSOR_CHAN_DIE_TEMP, &val);
+        float t = sensor_value_to_double(&val);
 
-        LOG_INF("Sensor values - X: %.2f mT, Y: %.2f mT, Z: %.2f mT, Temp: %.1f C",
-                (double)x, (double)y, (double)z, (double)t);
+        LOG_INF("Sensor values - X: %d.%03d mT, Y: %d.%03d mT, Z: %d.%03d mT, Temp: %d.%d C",
+                (int)x, (int)(x * 1000) % 1000,
+                (int)y, (int)(y * 1000) % 1000,
+                (int)z, (int)(z * 1000) % 1000,
+                (int)t, (int)(t * 10) % 10);
     } else {
         LOG_ERR("Failed to read sensor data");
     }
