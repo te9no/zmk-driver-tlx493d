@@ -191,7 +191,7 @@ static int tlx493d_init(const struct device *dev)
         LOG_ERR("Failed to read chip ID");
         return -EIO;
     }
-    LOG_INF("Chip ID: 0x%02x", id);
+    LOG_INF("Read chip ID: 0x%02x (expected: 0x21)", id);
 
     /* Initial delay for sensor stabilization */
     k_msleep(10);
@@ -214,6 +214,19 @@ static int tlx493d_init(const struct device *dev)
         return -EIO;
     }
     LOG_INF("Configuration verified - MOD1: 0x%02x, MOD2: 0x%02x", mod1, mod2);
+
+    /* Read and log all registers */
+    uint8_t reg_values[7];
+    if (i2c_burst_read_dt(&config->i2c, TLX493D_REG_BX, reg_values, sizeof(reg_values))) {
+        LOG_ERR("Failed to read registers");
+        return -EIO;
+    }
+
+    LOG_INF("Register values:");
+    LOG_INF("BX: 0x%02x, BY: 0x%02x, BZ: 0x%02x", 
+            reg_values[0], reg_values[1], reg_values[2]);
+    LOG_INF("TEMP: 0x%02x, BX2: 0x%02x", 
+            reg_values[3], reg_values[4]);
 
     /* Initialize state */
     data->x_prev = 0;
