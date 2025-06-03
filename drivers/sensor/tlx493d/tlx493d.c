@@ -57,6 +57,8 @@ struct tlx493d_config {
     struct i2c_dt_spec i2c;
 };
 
+#define TLX493D_I2C_ADDR    0x5E  /* Add I2C address definition */
+
 static int tlx493d_read_data(const struct device *dev)
 {
     struct tlx493d_data *data = dev->data;
@@ -179,7 +181,7 @@ static int tlx493d_init(const struct device *dev)
     struct tlx493d_data *data = dev->data;
     uint8_t id, mod1, mod2;
 
-    LOG_INF("Initializing TLX493D sensor...");
+    LOG_INF("Initializing TLX493D sensor at address 0x%02x...", TLX493D_I2C_ADDR);
 
     if (!device_is_ready(config->i2c.bus)) {
         LOG_ERR("I2C bus %s not ready", config->i2c.bus->name);
@@ -188,10 +190,10 @@ static int tlx493d_init(const struct device *dev)
 
     /* Read and verify chip ID */
     if (i2c_reg_read_byte_dt(&config->i2c, TLX493D_REG_VERS, &id)) {
-        LOG_ERR("Failed to read chip ID");
+        LOG_ERR("Failed to read chip ID at address 0x%02x", TLX493D_I2C_ADDR);
         return -EIO;
     }
-    LOG_INF("Read chip ID: 0x%02x (expected: 0x21)", id);
+    LOG_INF("Read chip ID: 0x%02x from address 0x%02x", id, TLX493D_I2C_ADDR);
 
     /* Initial delay for sensor stabilization */
     k_msleep(10);

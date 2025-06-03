@@ -33,9 +33,9 @@ Add the following to your device tree:
 
 ```dts
 &i2c0 {
-    tlx493d@c {
+    tlx493d@5e {
         compatible = "infineon,tlx493d";
-        reg = <0x0C>;
+        reg = <0x5E>;
         sensitivity = "1x";
         hysteresis = <100>;           /* 0.1 = 10% hysteresis */
         center-threshold = <400>;     /* 0.4 = 40% center deadzone */
