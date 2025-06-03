@@ -5,6 +5,7 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <math.h>
 
 LOG_MODULE_REGISTER(tlx493d, CONFIG_SENSOR_LOG_LEVEL);
 
@@ -36,6 +37,11 @@ LOG_MODULE_REGISTER(tlx493d, CONFIG_SENSOR_LOG_LEVEL);
 #define TLX493D_CAL_SAMPLES    300
 #define TLX493D_HYSTERESIS     0.1f    // 10% hysteresis
 #define TLX493D_CENTER_THRESH  0.4f    // Center deadzone threshold
+
+/* Event types */
+#define EVT_TYPE_DEFAULT    0
+#define EVT_TYPE_ABSOLUTE   1
+#define EVT_TYPE_RELATIVE   2
 
 struct tlx493d_data {
     const struct device *i2c_dev;
@@ -132,7 +138,7 @@ static int tlx493d_calibrate(const struct device *dev)
 
 static float apply_hysteresis(float current, float previous, float threshold)
 {
-    if (fabs(current - previous) < threshold) {
+    if (fabsf(current - previous) < threshold) {
         return previous;
     }
     return current;
@@ -150,7 +156,7 @@ static int tlx493d_channel_get(const struct device *dev,
         calibrated_value = (data->x - data->x_offset) * TLX493D_CONV_XY;
         value = apply_hysteresis(calibrated_value, data->x_prev, TLX493D_HYSTERESIS);
         data->x_prev = value;
-        if (fabs(value) < TLX493D_CENTER_THRESH) {
+        if (fabsf(value) < TLX493D_CENTER_THRESH) {
             value = 0;
         }
         break;
@@ -158,7 +164,7 @@ static int tlx493d_channel_get(const struct device *dev,
         calibrated_value = (data->y - data->y_offset) * TLX493D_CONV_XY;
         value = apply_hysteresis(calibrated_value, data->y_prev, TLX493D_HYSTERESIS);
         data->y_prev = value;
-        if (fabs(value) < TLX493D_CENTER_THRESH) {
+        if (fabsf(value) < TLX493D_CENTER_THRESH) {
             value = 0;
         }
         break;
@@ -166,7 +172,7 @@ static int tlx493d_channel_get(const struct device *dev,
         calibrated_value = (data->z - data->z_offset) * TLX493D_CONV_Z;
         value = apply_hysteresis(calibrated_value, data->z_prev, TLX493D_HYSTERESIS);
         data->z_prev = value;
-        if (fabs(value) < TLX493D_CENTER_THRESH) {
+        if (fabsf(value) < TLX493D_CENTER_THRESH) {
             value = 0;
         }
         break;
