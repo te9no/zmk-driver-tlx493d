@@ -4,9 +4,8 @@
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/kernel.h>
-#include <zephyr/input/input.h>
 #include <zephyr/logging/log.h>
-#include "tlx493d.h"
+#include <math.h>
 
 LOG_MODULE_REGISTER(tlx493d, CONFIG_SENSOR_LOG_LEVEL);
 
@@ -68,7 +67,6 @@ struct tlx493d_data {
     float x_prev;
     float y_prev;
     float z_prev;
-    struct input_dev *input;
 };
 
 struct tlx493d_config {
@@ -311,15 +309,11 @@ static int tlx493d_init(const struct device *dev)
     struct tlx493d_data *data = dev->data;
     int ret;
 
+    LOG_INF("Initializing TLX493D sensor...");
+
     if (!device_is_ready(config->i2c.bus)) {
         LOG_ERR("I2C bus not ready");
         return -ENODEV;
-    }
-
-    data->input = input_device_register(dev->name, INPUT_TYPE_RELATIVE, config->evt_type);
-    if (!data->input) {
-        LOG_ERR("Failed to register input device");
-        return -EINVAL;
     }
 
     /* Initial delay */
@@ -350,23 +344,22 @@ static int tlx493d_init(const struct device *dev)
     k_work_init_delayable(&sensor_timer, sensor_timer_handler);
     k_work_schedule(&sensor_timer, K_MSEC(LOG_INTERVAL_MS));
 
-    return 0;
+    return tlx493d_calibrate(dev);
 }
 
-/* Initialize the TLX493D driver */
+static const struct sensor_driver_api tlx493d_api = {
+    .sample_fetch = tlx493d_sample_fetch,
+    .channel_get = tlx493d_channel_get,
+};
+
 #define TLX493D_INIT(inst)                                               \
-    static struct tlx493d_data tlx493d_data_##inst = {                  \
-        .dev = DEVICE_DT_INST_GET(inst),                                \
-    };                                                                   \
+    static struct tlx493d_data tlx493d_data_##inst;                     \
     static const struct tlx493d_config tlx493d_config_##inst = {        \
         .i2c = I2C_DT_SPEC_INST_GET(inst),                             \
-        .evt_type = DT_INST_PROP_OR(inst, evt_type, INPUT_EV_REL),     \
+        .evt_type = DT_INST_PROP_OR(inst, evt_type, EVT_TYPE_DEFAULT), \
         .x_input_code = DT_INST_PROP_OR(inst, x_input_code, 0),        \
         .y_input_code = DT_INST_PROP_OR(inst, y_input_code, 0),        \
         .z_input_code = DT_INST_PROP_OR(inst, z_input_code, 0),        \
-        .hysteresis = DT_INST_PROP_OR(inst, hysteresis, 100),          \
-        .center_threshold = DT_INST_PROP_OR(inst, center_threshold, 400), \
-        .calibration_samples = DT_INST_PROP_OR(inst, calibration_samples, 300), \
     };                                                                   \
     DEVICE_DT_INST_DEFINE(inst,                                         \
                          tlx493d_init,                                   \
@@ -374,7 +367,7 @@ static int tlx493d_init(const struct device *dev)
                          &tlx493d_data_##inst,                          \
                          &tlx493d_config_##inst,                         \
                          POST_KERNEL,                                    \
-                         CONFIG_INPUT_INIT_PRIORITY,                     \
-                         NULL);
+                         CONFIG_SENSOR_INIT_PRIORITY,                    \
+                         &tlx493d_api);
 
 DT_INST_FOREACH_STATUS_OKAY(TLX493D_INIT)

@@ -1,69 +1,52 @@
-description: |
-  TLX493D 3D Magnetic Sensor
-  The TLX493D is a low power 3D magnetic sensor that provides
-  measurements for magnetic flux density in X, Y, and Z direction.
+description: TLX493D 3D Magnetic Sensor
 
 compatible: "infineon,tlx493d"
 
-include: [i2c-device.yaml, sensor-device.yaml]
+include: [i2c-device.yaml, input-device.yaml]
 
 properties:
   reg:
     required: true
-    description: I2C address of the sensor (default 0x5E)
+    description: I2C address of the sensor
 
   evt-type:
     type: int
     required: false
+    default: 2  # INPUT_EV_REL
+    description: Input event type (absolute or relative)
+
+  x-input-code:
+    type: int
+    required: false
     default: 0
-    description: Event type for sensor data processing
+    description: Input code for X axis movement
 
-  power-mode:
-    type: string
+  y-input-code:
+    type: int
     required: false
-    default: "master"
-    enum:
-      - "master"
-      - "low-power"
-    description: |
-      Operating mode of the sensor:
-      - master: Master controlled mode (higher power, faster sampling)
-      - low-power: Low power mode (power saving, slower sampling)
+    default: 1
+    description: Input code for Y axis movement
 
-  temp-enable:
-    type: boolean
+  z-input-code:
+    type: int
     required: false
-    description: Enable temperature sensing
+    default: 2
+    description: Input code for Z axis movement
 
   hysteresis:
     type: int
     required: false
     default: 100
-    description: Hysteresis threshold in thousandths (100 = 0.1)
+    description: Hysteresis threshold in thousandths
 
   center-threshold:
     type: int
     required: false
     default: 400
-    description: Center deadzone threshold in thousandths (400 = 0.4)
+    description: Center deadzone threshold in thousandths
 
   calibration-samples:
     type: int
     required: false
     default: 300
-    description: Number of samples to take during calibration
-
-  x-input-code:
-    type: int
-    required: false
-    description: Input code mapping for X-axis movement
-
-  y-input-code:
-    type: int
-    required: false
-    description: Input code mapping for Y-axis movement
-
-  z-input-code:
-    type: int
-    required: false
-    description: Input code mapping for Z-axis movement
+    description: Number of samples for calibration
