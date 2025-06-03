@@ -9,44 +9,71 @@
 
 LOG_MODULE_REGISTER(tlx493d, CONFIG_SENSOR_LOG_LEVEL);
 
-/* Register addresses */
-#define TLV493D_REG_BX      0x00
-#define TLV493D_REG_BY      0x01
-#define TLV493D_REG_BZ      0x02
-#define TLV493D_REG_TEMP    0x03
-#define TLV493D_REG_BXYZ2   0x04
-#define TLV493D_REG_MOD1    0x11
-#define TLV493D_REG_MOD2    0x13
+/* Register definitions from TLx493D_W2BW.c */
+#define TLV493D_R_BX1       0x00
+#define TLV493D_R_BX2       0x04
+#define TLV493D_R_BY1       0x01
+#define TLV493D_R_BY2       0x04
+#define TLV493D_R_BZ1       0x02
+#define TLV493D_R_BZ2       0x05
+#define TLV493D_R_TEMP1     0x03
+#define TLV493D_R_TEMP2     0x06
 
-/* Configuration values from sample */
-#define TLV493D_B_MULT      0.098f
-#define TLV493D_TEMP_MULT   1.1f
-#define TLV493D_TEMP_OFF    315
+/* Access registers */
+#define TLV493D_W_ADDR      0x00
+#define TLV493D_W_MOD1      0x11
+#define TLV493D_W_MOD2      0x13
+#define TLV493D_W_TEST      0x14
+
+/* Configuration values */
+#define TLV493D_MOD1_INT        0x04
+#define TLV493D_MOD1_FAST       0x02
+#define TLV493D_MOD1_LOW        0x01
+#define TLV493D_MOD2_T_EN       0x80
+#define TLV493D_MOD2_LP_PERIOD  0x40
 
 static K_THREAD_STACK_DEFINE(tlx493d_thread_stack, CONFIG_TLX493D_THREAD_STACK_SIZE);
 static struct k_thread tlx493d_thread;
+
+static int tlx493d_read_regs(const struct device *dev)
+{
+    struct tlx493d_data *data = dev->data;
+    const struct tlx493d_config *config = dev->config;
+    uint8_t buf[7];
+    int ret;
+
+    ret = i2c_burst_read_dt(&config->i2c, TLV493D_R_BX1, buf, sizeof(buf));
+    if (ret < 0) {
+        return ret;
+    }
+
+    /* Convert using official library format */
+    data->x = ((int16_t)buf[0] << 8) | ((buf[4] & 0xF0) << 0);
+    data->y = ((int16_t)buf[1] << 8) | ((buf[4] & 0x0F) << 4);
+    data->z = ((int16_t)buf[2] << 8) | ((buf[5] & 0x0F) << 4);
+    data->temp = ((int16_t)buf[3] << 8) | ((buf[6] & 0xF0) << 0);
+
+    return 0;
+}
 
 static void tlx493d_thread_main(void *p1, void *p2, void *p3)
 {
     const struct device *dev = p1;
     struct tlx493d_data *data = dev->data;
     const struct tlx493d_config *config = dev->config;
-    uint8_t buf[7];
-    int16_t x, y, z;
     float x_val, y_val, z_val;
 
     while (1) {
-        /* Read sensor data */
-        if (i2c_burst_read_dt(&config->i2c, TLV493D_REG_BX, buf, sizeof(buf)) == 0) {
-            /* Convert raw data */
-            x = ((int16_t)buf[0] << 4) | (buf[4] >> 4);
-            y = ((int16_t)buf[1] << 4) | (buf[4] & 0x0F);
-            z = ((int16_t)buf[2] << 4) | (buf[5] >> 4);
+        if (tlx493d_read_regs(dev) == 0) {
+            /* Convert to mT using official conversion factors */
+            x_val = data->x * 0.098f;
+            y_val = data->y * 0.098f;
+            z_val = data->z * 0.098f;
 
-            /* Apply calibration and scaling */
-            x_val = (x - data->x_offset) * TLV493D_B_MULT;
-            y_val = (y - data->y_offset) * TLV493D_B_MULT;
-            z_val = (z - data->z_offset) * TLV493D_B_MULT;
+            /* Apply calibration offsets */
+            x_val -= data->x_offset;
+            y_val -= data->y_offset;
+            z_val -= data->z_offset;
 
             /* Apply hysteresis and deadzone */
             if (fabs(x_val) > config->center_threshold / 1000.0f) {
@@ -60,8 +87,7 @@ static void tlx493d_thread_main(void *p1, void *p2, void *p3)
 
             input_sync(data->input);
         }
-
-        k_msleep(10);  // 100Hz sampling rate
+        k_msleep(10);
     }
 }
 
@@ -69,6 +95,7 @@ static int tlx493d_init(const struct device *dev)
 {
     struct tlx493d_data *data = dev->data;
     const struct tlx493d_config *config = dev->config;
+    int ret;
 
     if (!device_is_ready(config->i2c.bus)) {
         LOG_ERR("I2C bus not ready");
@@ -82,15 +109,29 @@ static int tlx493d_init(const struct device *dev)
         return -EINVAL;
     }
 
-    /* Configure sensor in master controlled mode */
-    uint8_t cfg[] = {
-        0x00,  // Power down mode
-        0x11   // Master controlled mode
+    /* Initial configuration sequence from TLx493D_W2BW.c */
+    const uint8_t init_seq[] = {
+        0x00,  // Reset
+        0x00, 
+        0x00,
     };
+    ret = i2c_write_dt(&config->i2c, init_seq, sizeof(init_seq));
+    if (ret < 0) {
+        LOG_ERR("Failed to reset sensor");
+        return ret;
+    }
+    k_msleep(40);  // Wait for reset
 
-    if (i2c_write_dt(&config->i2c, cfg, sizeof(cfg))) {
+    /* Configure master controlled mode */
+    const uint8_t config_seq[] = {
+        TLV493D_MOD1_FAST,                    // Fast mode
+        0x00,                                  // Reserved
+        TLV493D_MOD2_T_EN | TLV493D_MOD2_LP_PERIOD  // Enable temp + LP period
+    };
+    ret = i2c_write_dt(&config->i2c, config_seq, sizeof(config_seq));
+    if (ret < 0) {
         LOG_ERR("Failed to configure sensor");
-        return -EIO;
+        return ret;
     }
 
     /* Start sampling thread */
