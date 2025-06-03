@@ -165,18 +165,22 @@ static int tlx493d_init(const struct device *dev)
     struct tlx493d_data *data = dev->data;
     uint8_t id;
 
+    LOG_INF("Initializing TLX493D sensor");  // 追加：初期化開始ログ
+
     if (!device_is_ready(config->i2c.bus)) {
         LOG_ERR("I2C bus not ready");
         return -ENODEV;
     }
 
-    /* Read chip ID */
+    /* Read chip ID and verify */
     if (i2c_reg_read_byte_dt(&config->i2c, TLX493D_REG_VERS, &id)) {
         LOG_ERR("Failed to read chip ID");
         return -EIO;
     }
+    LOG_INF("Chip ID: 0x%02x", id);  // 追加：チップID確認ログ
 
-    /* Configure sensor */
+    /* Configure sensor with delay */
+    k_msleep(10);  // 追加：初期化前の待機
     if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD1, TLX493D_MOD1_MASTER) ||
         i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD2, TLX493D_MOD2_TEMP_EN)) {
         LOG_ERR("Failed to configure sensor");
@@ -188,11 +192,16 @@ static int tlx493d_init(const struct device *dev)
     data->y_prev = 0;
     data->z_prev = 0;
 
+    /* Wait before calibration */
+    k_msleep(50);  // 追加：キャリブレーション前の安定化待機
+
     /* Perform initial calibration */
+    LOG_INF("Starting calibration...");  // 追加：キャリブレーション開始ログ
     if (tlx493d_calibrate(dev) != 0) {
         LOG_ERR("Calibration failed");
         return -EIO;
     }
+    LOG_INF("Calibration complete");  // 追加：キャリブレーション完了ログ
 
     return 0;
 }
@@ -211,7 +220,7 @@ static const struct sensor_driver_api tlx493d_api = {
                          tlx493d_init,                                   \
                          NULL,                                           \
                          &tlx493d_data_##inst,                          \
-                         &tlx493d_config_##inst,                        \
+                         &tlx493d_config_##inst,                         \
                          POST_KERNEL,                                    \
                          CONFIG_SENSOR_INIT_PRIORITY,                    \
                          &tlx493d_api);
