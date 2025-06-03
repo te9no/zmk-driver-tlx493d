@@ -26,10 +26,14 @@ LOG_MODULE_REGISTER(tlx493d, CONFIG_SENSOR_LOG_LEVEL);
 #define TLV493D_REG_MOD2      0x13    // Mode2 register
 
 /* Configuration values */
-#define TLV493D_ACCESS_MASTER 0x11    // Master controlled mode access value
-#define TLV493D_CONFIG_MASTER 0x00    // Master controlled mode config
-#define TLV493D_MOD1_MASTER   0x20    // Master controlled mode MOD1 value
-#define TLV493D_MOD2_TEMP_EN  0x80    // Temperature measurement enable
+#define TLV493D_MEASUREMENT_DELAY_MS   10  // Required delay between measurements
+#define TLV493D_ACCESS_MASTER          0x11    // Master controlled mode access value
+#define TLV493D_CONFIG_MASTER          0x00    // Master controlled mode config
+#define TLV493D_MOD1_MASTER           0x20    // Master controlled mode MOD1 value
+#define TLV493D_MOD2_TEMP_EN          0x80    // Temperature measurement enable
+#define TLV493D_B_MULT                0.098f  // Magnetic field conversion factor (in mT)
+#define TLV493D_T_MULT                1.1f    // Temperature conversion factor
+#define TLV493D_T_OFFSET              315     // Temperature offset
 
 /* Calibration settings */
 #define TLX493D_CAL_SAMPLES    300
@@ -76,7 +80,7 @@ static int tlx493d_read_data(const struct device *dev)
     int ret;
 
     /* Wait for measurement to complete (from sample) */
-    k_msleep(TLV493D_MEASUREMENT_DELAY);
+    k_msleep(TLV493D_MEASUREMENT_DELAY_MS);
 
     ret = i2c_burst_read_dt(&config->i2c, TLV493D_REG_B_X1, buf, sizeof(buf));
     if (ret < 0) {
