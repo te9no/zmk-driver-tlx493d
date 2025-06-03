@@ -230,7 +230,6 @@ static struct k_work_delayable sensor_timer;
 static void sensor_timer_handler(struct k_work *work)
 {
     const struct device *dev = DEVICE_DT_GET_ANY(infineon_tlx493d);
-    struct tlx493d_data *data = dev->data;
     const struct tlx493d_config *config = dev->config;
     struct sensor_value val;
     
@@ -296,6 +295,14 @@ static const uint8_t INIT_DATA[] = {
     0x00   // Register 3: Temperature disabled
 };
 
+/* Configuration frames */
+static const uint8_t CONFIG_DATA[] = {
+    0x00,  // Addr
+    0x02,  // Register 1: Fast mode
+    0x00,  // Register 2
+    0x80   // Register 3: Temperature enabled
+};
+
 static int tlx493d_init(const struct device *dev)
 {
     const struct tlx493d_config *config = dev->config;
@@ -321,14 +328,7 @@ static int tlx493d_init(const struct device *dev)
     k_msleep(TLV493D_RESET_DELAY_MS);
 
     /* Configure master controlled mode */
-    uint8_t config_data[] = {
-        0x00,  // Addr
-        TLV493D_FAST_REG1,  // Register 1: Fast mode
-        0x00,  // Register 2
-        0x80   // Register 3: Temperature enabled
-    };
-
-    ret = i2c_write_dt(&config->i2c, config_data, sizeof(config_data));
+    ret = i2c_write_dt(&config->i2c, CONFIG_DATA, sizeof(CONFIG_DATA));
     if (ret < 0) {
         LOG_ERR("Failed to configure sensor");
         return ret;
