@@ -4,7 +4,7 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/i2c.h>
 
-#define TLX493D_I2C_ADDR 0x0C
+#define TLX493D_I2C_ADDR 0x5E
 
 struct tlx493d_config {
     struct i2c_dt_spec i2c;

@@ -10,7 +10,7 @@ include: [i2c-device.yaml, sensor-device.yaml]
 properties:
   reg:
     required: true
-    description: I2C address of the sensor (default 0x0C)
+    description: I2C address of the sensor (default 0x5E)
 
   power-mode:
     type: string
