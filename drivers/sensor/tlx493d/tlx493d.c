@@ -64,6 +64,7 @@ static int tlx493d_read_data(const struct device *dev)
     uint8_t buf[7];
 
     if (i2c_burst_read_dt(&config->i2c, TLX493D_REG_BX, buf, sizeof(buf))) {
+        LOG_ERR("Failed to read sensor data");
         return -EIO;
     }
 
@@ -73,6 +74,7 @@ static int tlx493d_read_data(const struct device *dev)
     data->z = ((int16_t)buf[2] << 4) | (buf[5] >> 4);
     data->temp = (int16_t)buf[3];
 
+    LOG_DBG("Raw data - X: %d, Y: %d, Z: %d", data->x, data->y, data->z);
     return 0;
 }
 
@@ -89,22 +91,34 @@ static int tlx493d_calibrate(const struct device *dev)
 {
     struct tlx493d_data *data = dev->data;
     float x_sum = 0, y_sum = 0, z_sum = 0;
+    int ret;
+
+    LOG_INF("Starting calibration process (%d samples)", TLX493D_CAL_SAMPLES);
 
     /* Collect samples for calibration */
     for (int i = 0; i < TLX493D_CAL_SAMPLES; i++) {
-        if (tlx493d_read_data(dev) != 0) {
-            return -EIO;
+        ret = tlx493d_read_data(dev);
+        if (ret != 0) {
+            LOG_ERR("Calibration failed at sample %d", i);
+            return ret;
         }
         x_sum += data->x;
         y_sum += data->y;
         z_sum += data->z;
-        k_msleep(10); // Delay between samples
+        k_msleep(10);
+        
+        if (i % 50 == 0) {  // Log progress every 50 samples
+            LOG_INF("Calibration progress: %d%%", (i * 100) / TLX493D_CAL_SAMPLES);
+        }
     }
 
     /* Calculate offsets */
     data->x_offset = x_sum / TLX493D_CAL_SAMPLES;
     data->y_offset = y_sum / TLX493D_CAL_SAMPLES;
     data->z_offset = z_sum / TLX493D_CAL_SAMPLES;
+
+    LOG_INF("Calibration complete - Offsets X: %.2f, Y: %.2f, Z: %.2f",
+            (double)data->x_offset, (double)data->y_offset, (double)data->z_offset);
 
     return 0;
 }
@@ -163,47 +177,53 @@ static int tlx493d_init(const struct device *dev)
 {
     const struct tlx493d_config *config = dev->config;
     struct tlx493d_data *data = dev->data;
-    uint8_t id;
+    uint8_t id, mod1, mod2;
 
-    LOG_INF("Initializing TLX493D sensor");  // 追加：初期化開始ログ
+    LOG_INF("Initializing TLX493D sensor...");
 
     if (!device_is_ready(config->i2c.bus)) {
-        LOG_ERR("I2C bus not ready");
+        LOG_ERR("I2C bus %s not ready", config->i2c.bus->name);
         return -ENODEV;
     }
 
-    /* Read chip ID and verify */
+    /* Read and verify chip ID */
     if (i2c_reg_read_byte_dt(&config->i2c, TLX493D_REG_VERS, &id)) {
         LOG_ERR("Failed to read chip ID");
         return -EIO;
     }
-    LOG_INF("Chip ID: 0x%02x", id);  // 追加：チップID確認ログ
+    LOG_INF("Chip ID: 0x%02x", id);
 
-    /* Configure sensor with delay */
-    k_msleep(10);  // 追加：初期化前の待機
-    if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD1, TLX493D_MOD1_MASTER) ||
-        i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD2, TLX493D_MOD2_TEMP_EN)) {
-        LOG_ERR("Failed to configure sensor");
+    /* Initial delay for sensor stabilization */
+    k_msleep(10);
+
+    /* Configure sensor */
+    if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD1, TLX493D_MOD1_MASTER)) {
+        LOG_ERR("Failed to write MOD1 register");
         return -EIO;
     }
 
-    /* Initialize previous values */
+    if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD2, TLX493D_MOD2_TEMP_EN)) {
+        LOG_ERR("Failed to write MOD2 register");
+        return -EIO;
+    }
+
+    /* Verify configuration */
+    if (i2c_reg_read_byte_dt(&config->i2c, TLX493D_REG_MOD1, &mod1) ||
+        i2c_reg_read_byte_dt(&config->i2c, TLX493D_REG_MOD2, &mod2)) {
+        LOG_ERR("Failed to verify configuration");
+        return -EIO;
+    }
+    LOG_INF("Configuration verified - MOD1: 0x%02x, MOD2: 0x%02x", mod1, mod2);
+
+    /* Initialize state */
     data->x_prev = 0;
     data->y_prev = 0;
     data->z_prev = 0;
 
-    /* Wait before calibration */
-    k_msleep(50);  // 追加：キャリブレーション前の安定化待機
+    /* Wait for sensor to stabilize */
+    k_msleep(50);
 
-    /* Perform initial calibration */
-    LOG_INF("Starting calibration...");  // 追加：キャリブレーション開始ログ
-    if (tlx493d_calibrate(dev) != 0) {
-        LOG_ERR("Calibration failed");
-        return -EIO;
-    }
-    LOG_INF("Calibration complete");  // 追加：キャリブレーション完了ログ
-
-    return 0;
+    return tlx493d_calibrate(dev);
 }
 
 static const struct sensor_driver_api tlx493d_api = {
