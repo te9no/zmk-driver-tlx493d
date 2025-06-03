@@ -289,11 +289,17 @@ static void sensor_timer_handler(struct k_work *work)
     k_work_schedule(&sensor_timer, K_MSEC(LOG_INTERVAL_MS));
 }
 
+static const uint8_t INIT_DATA[] = {
+    0x00,  // Addr
+    0x00,  // Register 1: Power down mode
+    0x00,  // Register 2
+    0x00   // Register 3: Temperature disabled
+};
+
 static int tlx493d_init(const struct device *dev)
 {
     const struct tlx493d_config *config = dev->config;
     struct tlx493d_data *data = dev->data;
-    uint8_t cmd;
     int ret;
 
     LOG_INF("Initializing TLX493D sensor...");
@@ -306,29 +312,25 @@ static int tlx493d_init(const struct device *dev)
     /* Initial delay */
     k_msleep(TLV493D_STARTUP_DELAY_MS);
 
-    /* Enter power down mode first */
-    cmd = TLV493D_POWER_MODE;
-    ret = i2c_write_dt(&config->i2c, &cmd, 1);
+    /* Send initial frame */
+    ret = i2c_write_dt(&config->i2c, INIT_DATA, sizeof(INIT_DATA));
     if (ret < 0) {
-        LOG_ERR("Failed to enter power down mode");
+        LOG_ERR("Failed to write initial frame");
         return ret;
     }
     k_msleep(TLV493D_RESET_DELAY_MS);
 
-    /* Switch to master controlled mode */
-    cmd = TLV493D_WRITE_ADR;
-    ret = i2c_write_dt(&config->i2c, &cmd, 1);
-    if (ret < 0) {
-        LOG_ERR("Failed to set master mode");
-        return ret;
-    }
-    k_msleep(TLV493D_RESET_DELAY_MS);
+    /* Configure master controlled mode */
+    uint8_t config_data[] = {
+        0x00,  // Addr
+        TLV493D_FAST_REG1,  // Register 1: Fast mode
+        0x00,  // Register 2
+        0x80   // Register 3: Temperature enabled
+    };
 
-    /* Enable fast mode and temperature */
-    cmd = TLV493D_FAST_MODE;
-    ret = i2c_write_dt(&config->i2c, &cmd, 1);
+    ret = i2c_write_dt(&config->i2c, config_data, sizeof(config_data));
     if (ret < 0) {
-        LOG_ERR("Failed to enable fast mode");
+        LOG_ERR("Failed to configure sensor");
         return ret;
     }
     k_msleep(TLV493D_RESET_DELAY_MS);
@@ -337,9 +339,6 @@ static int tlx493d_init(const struct device *dev)
     data->x_prev = 0;
     data->y_prev = 0;
     data->z_prev = 0;
-
-    /* Wait for sensor to stabilize */
-    k_msleep(TLV493D_STARTUP_DELAY_MS);
 
     /* Initialize and start timer */
     k_work_init_delayable(&sensor_timer, sensor_timer_handler);
