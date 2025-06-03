@@ -6,7 +6,6 @@
 #include <zephyr/input/input.h>
 #include <zephyr/logging/log.h>
 #include <math.h>
-#include "tlx493d.h"
 
 LOG_MODULE_REGISTER(tlx493d, CONFIG_SENSOR_LOG_LEVEL);
 
