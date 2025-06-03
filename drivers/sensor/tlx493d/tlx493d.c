@@ -22,6 +22,10 @@ LOG_MODULE_REGISTER(tlx493d, CONFIG_SENSOR_LOG_LEVEL);
 #define TLX493D_REG_VERS     0x5E
 #define TLX493D_REG_MOD2     0x13
 
+/* Additional register addresses */
+#define TLX493D_REG_RESET    0x00
+#define TLX493D_REG_CONFIG   0x10
+
 /* Configuration values */
 #define TLX493D_MOD1_DEFAULT     0x20
 #define TLX493D_MOD1_LOW_POWER   0x00
@@ -70,11 +74,18 @@ struct tlx493d_config {
 #define TLX493D_I2C_ADDR    0x5E
 #define TLX493D_I2C_RETRIES 3    // 通信リトライ回数
 
+/* Additional configuration values */
+#define TLX493D_RESET_VAL    0xFF
+#define TLX493D_MEASUREMENT_DELAY_MS 10
+
 static int tlx493d_read_data(const struct device *dev)
 {
     struct tlx493d_data *data = dev->data;
     const struct tlx493d_config *config = dev->config;
     uint8_t buf[7];
+
+    /* Wait for measurement to complete */
+    k_msleep(TLX493D_MEASUREMENT_DELAY_MS);
 
     if (i2c_burst_read_dt(&config->i2c, TLX493D_REG_BX, buf, sizeof(buf))) {
         LOG_ERR("Failed to read sensor data");
@@ -82,12 +93,13 @@ static int tlx493d_read_data(const struct device *dev)
     }
 
     /* Convert raw data to 12-bit signed values */
-    data->x = ((int16_t)buf[0] << 4) | (buf[4] >> 4);
-    data->y = ((int16_t)buf[1] << 4) | (buf[4] & 0x0F);
-    data->z = ((int16_t)buf[2] << 4) | (buf[5] >> 4);
+    data->x = (((int16_t)buf[0]) << 4) | (buf[4] >> 4);
+    data->y = (((int16_t)buf[1]) << 4) | (buf[4] & 0x0F);
+    data->z = (((int16_t)buf[2]) << 4) | (buf[5] >> 4);
     data->temp = (int16_t)buf[3];
 
-    LOG_DBG("Raw data - X: %d, Y: %d, Z: %d", data->x, data->y, data->z);
+    LOG_DBG("Raw data - X: %d, Y: %d, Z: %d, T: %d", 
+            data->x, data->y, data->z, data->temp);
     return 0;
 }
 
@@ -275,41 +287,29 @@ static int tlx493d_init(const struct device *dev)
     struct tlx493d_data *data = dev->data;
     uint8_t id, mod1, mod2;
 
-    LOG_INF("Initializing TLX493D sensor at address 0x%02x...", TLX493D_I2C_ADDR);
+    LOG_INF("Initializing TLX493D sensor...");
 
-    if (!device_is_ready(config->i2c.bus)) {
-        LOG_ERR("I2C bus %s not ready", config->i2c.bus->name);
-        return -ENODEV;
-    }
-
-    /* I2C bus check */
-    uint8_t test_val = 0;
-    if (tlx493d_i2c_read(dev, TLX493D_REG_VERS, &test_val)) {
-        LOG_ERR("I2C communication test failed");
+    /* Reset sensor */
+    if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_RESET, TLX493D_RESET_VAL)) {
+        LOG_ERR("Failed to reset sensor");
         return -EIO;
     }
-    LOG_INF("I2C communication test successful");
+    k_msleep(50);  // Wait for reset
 
-    /* Read and verify chip ID with retries */
-    if (tlx493d_i2c_read(dev, TLX493D_REG_VERS, &id)) {
-        LOG_ERR("Failed to read chip ID at address 0x%02x", TLX493D_I2C_ADDR);
-        return -EIO;
-    }
-    LOG_INF("Read chip ID: 0x%02x from address 0x%02x", id, TLX493D_I2C_ADDR);
-
-    /* Initial delay for sensor stabilization */
-    k_msleep(50);  // 安定化のため待機時間を増加
-
-    /* Configure sensor */
+    /* Configure master controlled mode */
     if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD1, TLX493D_MOD1_MASTER)) {
-        LOG_ERR("Failed to write MOD1 register");
+        LOG_ERR("Failed to set master mode");
         return -EIO;
     }
 
+    /* Enable fast mode and temperature measurement */
     if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD2, TLX493D_MOD2_TEMP_EN)) {
-        LOG_ERR("Failed to write MOD2 register");
+        LOG_ERR("Failed to configure measurement mode");
         return -EIO;
     }
+
+    /* Wait for configuration to take effect */
+    k_msleep(50);
 
     /* Verify configuration */
     if (i2c_reg_read_byte_dt(&config->i2c, TLX493D_REG_MOD1, &mod1) ||
@@ -317,33 +317,14 @@ static int tlx493d_init(const struct device *dev)
         LOG_ERR("Failed to verify configuration");
         return -EIO;
     }
-    LOG_INF("Configuration verified - MOD1: 0x%02x, MOD2: 0x%02x", mod1, mod2);
-
-    /* Read and log all registers */
-    uint8_t reg_values[7];
-    if (i2c_burst_read_dt(&config->i2c, TLX493D_REG_BX, reg_values, sizeof(reg_values))) {
-        LOG_ERR("Failed to read registers");
-        return -EIO;
-    }
-
-    LOG_INF("Register values:");
-    LOG_INF("BX: 0x%02x, BY: 0x%02x, BZ: 0x%02x", 
-            reg_values[0], reg_values[1], reg_values[2]);
-    LOG_INF("TEMP: 0x%02x, BX2: 0x%02x", 
-            reg_values[3], reg_values[4]);
+    LOG_INF("Configuration - MOD1: 0x%02x, MOD2: 0x%02x", mod1, mod2);
 
     /* Initialize state */
     data->x_prev = 0;
     data->y_prev = 0;
     data->z_prev = 0;
 
-    /* Wait for sensor to stabilize */
-    k_msleep(50);
-
-    /* Initialize and start timer for periodic logging */
-    k_work_init_delayable(&sensor_timer, sensor_timer_handler);
-    k_work_schedule(&sensor_timer, K_MSEC(LOG_INTERVAL_MS));
-
+    /* Perform initial calibration */
     return tlx493d_calibrate(dev);
 }
 
