@@ -2,7 +2,7 @@ description: TLX493D 3D Magnetic Sensor
 
 compatible: "infineon,tlx493d"
 
-include: [i2c-device.yaml, input-device.yaml]
+include: [i2c-device.yaml]
 
 properties:
   reg:
