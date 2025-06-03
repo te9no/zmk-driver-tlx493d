@@ -193,6 +193,32 @@ static int tlx493d_i2c_read(const struct device *dev, uint8_t reg, uint8_t *val)
     return -EIO;
 }
 
+/* Timer settings */
+#define LOG_INTERVAL_MS 1000
+static struct k_work_delayable sensor_timer;
+
+static void sensor_timer_handler(struct k_work *work)
+{
+    const struct device *dev = DEVICE_DT_GET_ANY(infineon_tlx493d);
+    struct tlx493d_data *data = dev->data;
+    
+    // Read sensor data
+    if (tlx493d_read_data(dev) == 0) {
+        float x = (data->x - data->x_offset) * TLX493D_CONV_XY;
+        float y = (data->y - data->y_offset) * TLX493D_CONV_XY;
+        float z = (data->z - data->z_offset) * TLX493D_CONV_Z;
+        float t = data->temp * TLX493D_CONV_TEMP;
+
+        LOG_INF("Sensor values - X: %.2f mT, Y: %.2f mT, Z: %.2f mT, Temp: %.1f C",
+                (double)x, (double)y, (double)z, (double)t);
+    } else {
+        LOG_ERR("Failed to read sensor data");
+    }
+
+    // Schedule next update
+    k_work_schedule(&sensor_timer, K_MSEC(LOG_INTERVAL_MS));
+}
+
 static int tlx493d_init(const struct device *dev)
 {
     const struct tlx493d_config *config = dev->config;
@@ -263,6 +289,10 @@ static int tlx493d_init(const struct device *dev)
 
     /* Wait for sensor to stabilize */
     k_msleep(50);
+
+    /* Initialize and start timer for periodic logging */
+    k_work_init_delayable(&sensor_timer, sensor_timer_handler);
+    k_work_schedule(&sensor_timer, K_MSEC(LOG_INTERVAL_MS));
 
     return tlx493d_calibrate(dev);
 }
