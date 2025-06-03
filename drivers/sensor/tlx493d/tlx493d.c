@@ -57,7 +57,8 @@ struct tlx493d_config {
     struct i2c_dt_spec i2c;
 };
 
-#define TLX493D_I2C_ADDR    0x5E  /* Add I2C address definition */
+#define TLX493D_I2C_ADDR    0x5E
+#define TLX493D_I2C_RETRIES 3    // 通信リトライ回数
 
 static int tlx493d_read_data(const struct device *dev)
 {
@@ -175,6 +176,23 @@ static int tlx493d_channel_get(const struct device *dev,
     return sensor_value_from_float(val, value);
 }
 
+static int tlx493d_i2c_read(const struct device *dev, uint8_t reg, uint8_t *val)
+{
+    const struct tlx493d_config *config = dev->config;
+    int ret;
+
+    for (int i = 0; i < TLX493D_I2C_RETRIES; i++) {
+        ret = i2c_reg_read_byte_dt(&config->i2c, reg, val);
+        if (ret == 0) {
+            LOG_DBG("I2C read success - reg: 0x%02x, val: 0x%02x", reg, *val);
+            return 0;
+        }
+        LOG_ERR("I2C read failed (attempt %d) - reg: 0x%02x, err: %d", i + 1, reg, ret);
+        k_msleep(10);
+    }
+    return -EIO;
+}
+
 static int tlx493d_init(const struct device *dev)
 {
     const struct tlx493d_config *config = dev->config;
@@ -188,15 +206,23 @@ static int tlx493d_init(const struct device *dev)
         return -ENODEV;
     }
 
-    /* Read and verify chip ID */
-    if (i2c_reg_read_byte_dt(&config->i2c, TLX493D_REG_VERS, &id)) {
+    /* I2C bus check */
+    uint8_t test_val = 0;
+    if (tlx493d_i2c_read(dev, TLX493D_REG_VERS, &test_val)) {
+        LOG_ERR("I2C communication test failed");
+        return -EIO;
+    }
+    LOG_INF("I2C communication test successful");
+
+    /* Read and verify chip ID with retries */
+    if (tlx493d_i2c_read(dev, TLX493D_REG_VERS, &id)) {
         LOG_ERR("Failed to read chip ID at address 0x%02x", TLX493D_I2C_ADDR);
         return -EIO;
     }
     LOG_INF("Read chip ID: 0x%02x from address 0x%02x", id, TLX493D_I2C_ADDR);
 
     /* Initial delay for sensor stabilization */
-    k_msleep(10);
+    k_msleep(50);  // 安定化のため待機時間を増加
 
     /* Configure sensor */
     if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD1, TLX493D_MOD1_MASTER)) {
