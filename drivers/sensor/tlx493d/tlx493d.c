@@ -289,12 +289,13 @@ static int tlx493d_init(const struct device *dev)
 
     LOG_INF("Initializing TLX493D sensor...");
 
-    /* Reset sensor */
-    if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_RESET, TLX493D_RESET_VAL)) {
-        LOG_ERR("Failed to reset sensor");
-        return -EIO;
+    if (!device_is_ready(config->i2c.bus)) {
+        LOG_ERR("I2C bus %s not ready", config->i2c.bus->name);
+        return -ENODEV;
     }
-    k_msleep(50);  // Wait for reset
+
+    /* Initial delay for I2C bus and sensor to stabilize */
+    k_msleep(100);
 
     /* Configure master controlled mode */
     if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD1, TLX493D_MOD1_MASTER)) {
@@ -302,7 +303,9 @@ static int tlx493d_init(const struct device *dev)
         return -EIO;
     }
 
-    /* Enable fast mode and temperature measurement */
+    k_msleep(10);  // Wait between writes
+
+    /* Enable temperature measurement */
     if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD2, TLX493D_MOD2_TEMP_EN)) {
         LOG_ERR("Failed to configure measurement mode");
         return -EIO;
