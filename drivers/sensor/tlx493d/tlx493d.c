@@ -55,6 +55,7 @@ struct tlx493d_data {
 
 struct tlx493d_config {
     struct i2c_dt_spec i2c;
+    uint8_t evt_type;
 };
 
 #define TLX493D_I2C_ADDR    0x5E
@@ -201,31 +202,41 @@ static void sensor_timer_handler(struct k_work *work)
 {
     const struct device *dev = DEVICE_DT_GET_ANY(infineon_tlx493d);
     struct tlx493d_data *data = dev->data;
+    const struct tlx493d_config *config = dev->config;
     struct sensor_value val;
     
-    // Read sensor data
     if (tlx493d_read_data(dev) == 0) {
-        // X値を取得
         tlx493d_channel_get(dev, SENSOR_CHAN_MAGN_X, &val);
         float x = sensor_value_to_double(&val);
-        
-        // Y値を取得
         tlx493d_channel_get(dev, SENSOR_CHAN_MAGN_Y, &val);
         float y = sensor_value_to_double(&val);
-        
-        // Z値を取得
         tlx493d_channel_get(dev, SENSOR_CHAN_MAGN_Z, &val);
         float z = sensor_value_to_double(&val);
-        
-        // 温度値を取得
         tlx493d_channel_get(dev, SENSOR_CHAN_DIE_TEMP, &val);
         float t = sensor_value_to_double(&val);
 
-        LOG_INF("Sensor values - X: %d.%03d mT, Y: %d.%03d mT, Z: %d.%03d mT, Temp: %d.%d C",
-                (int)x, (int)(x * 1000) % 1000,
-                (int)y, (int)(y * 1000) % 1000,
-                (int)z, (int)(z * 1000) % 1000,
-                (int)t, (int)(t * 10) % 10);
+        switch (config->evt_type) {
+        case EVT_TYPE_ABSOLUTE:
+            LOG_INF("ABS: X: %d.%03d Y: %d.%03d Z: %d.%03d T: %d.%d",
+                    (int)x, (int)(x * 1000) % 1000,
+                    (int)y, (int)(y * 1000) % 1000,
+                    (int)z, (int)(z * 1000) % 1000,
+                    (int)t, (int)(t * 10) % 10);
+            break;
+        case EVT_TYPE_RELATIVE:
+            LOG_INF("REL: X: %+d.%03d Y: %+d.%03d Z: %+d.%03d T: %d.%d",
+                    (int)x, (int)(x * 1000) % 1000,
+                    (int)y, (int)(y * 1000) % 1000,
+                    (int)z, (int)(z * 1000) % 1000,
+                    (int)t, (int)(t * 10) % 10);
+            break;
+        default:
+            LOG_INF("Sensor values - X: %d.%03d mT, Y: %d.%03d mT, Z: %d.%03d mT, Temp: %d.%d C",
+                    (int)x, (int)(x * 1000) % 1000,
+                    (int)y, (int)(y * 1000) % 1000,
+                    (int)z, (int)(z * 1000) % 1000,
+                    (int)t, (int)(t * 10) % 10);
+        }
     } else {
         LOG_ERR("Failed to read sensor data");
     }
@@ -321,6 +332,7 @@ static const struct sensor_driver_api tlx493d_api = {
     static struct tlx493d_data tlx493d_data_##inst;                     \
     static const struct tlx493d_config tlx493d_config_##inst = {        \
         .i2c = I2C_DT_SPEC_INST_GET(inst),                             \
+        .evt_type = DT_INST_PROP_OR(inst, evt_type, EVT_TYPE_DEFAULT), \
     };                                                                   \
     DEVICE_DT_INST_DEFINE(inst,                                         \
                          tlx493d_init,                                   \

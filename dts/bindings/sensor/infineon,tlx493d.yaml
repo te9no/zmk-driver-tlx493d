@@ -12,6 +12,12 @@ properties:
     required: true
     description: I2C address of the sensor (default 0x5E)
 
+  evt-type:
+    type: int
+    required: false
+    default: 0
+    description: Event type for sensor data processing
+
   power-mode:
     type: string
     required: false
