@@ -23,7 +23,9 @@ LOG_MODULE_REGISTER(tlx493d, CONFIG_SENSOR_LOG_LEVEL);
 /* Configuration values from sample code */
 #define TLV493D_MODE_MASTER_CONTROLLED 0x00
 #define TLV493D_MEASUREMENT_DELAY      10
-#define TLV493D_B_MULT                 0.098f
+#define TLV493D_B_MULT                 0.098f  // Magnetic field conversion factor (in mT)
+#define TLV493D_T_MULT                 1.1f    // Temperature conversion factor
+#define TLV493D_T_OFFSET              315     // Temperature offset
 
 /* Calibration settings */
 #define TLX493D_CAL_SAMPLES    300
@@ -155,7 +157,7 @@ static int tlx493d_channel_get(const struct device *dev,
 
     switch (chan) {
     case SENSOR_CHAN_MAGN_X:
-        calibrated_value = (data->x - data->x_offset) * TLX493D_CONV_XY;
+        calibrated_value = (data->x - data->x_offset) * TLV493D_B_MULT;
         value = apply_hysteresis(calibrated_value, data->x_prev, TLX493D_HYSTERESIS);
         data->x_prev = value;
         if (fabsf(value) < TLX493D_CENTER_THRESH) {
@@ -163,7 +165,7 @@ static int tlx493d_channel_get(const struct device *dev,
         }
         break;
     case SENSOR_CHAN_MAGN_Y:
-        calibrated_value = (data->y - data->y_offset) * TLX493D_CONV_XY;
+        calibrated_value = (data->y - data->y_offset) * TLV493D_B_MULT;
         value = apply_hysteresis(calibrated_value, data->y_prev, TLX493D_HYSTERESIS);
         data->y_prev = value;
         if (fabsf(value) < TLX493D_CENTER_THRESH) {
@@ -171,7 +173,7 @@ static int tlx493d_channel_get(const struct device *dev,
         }
         break;
     case SENSOR_CHAN_MAGN_Z:
-        calibrated_value = (data->z - data->z_offset) * TLX493D_CONV_Z;
+        calibrated_value = (data->z - data->z_offset) * TLV493D_B_MULT;
         value = apply_hysteresis(calibrated_value, data->z_prev, TLX493D_HYSTERESIS);
         data->z_prev = value;
         if (fabsf(value) < TLX493D_CENTER_THRESH) {
@@ -179,7 +181,7 @@ static int tlx493d_channel_get(const struct device *dev,
         }
         break;
     case SENSOR_CHAN_DIE_TEMP:
-        value = data->temp * TLX493D_CONV_TEMP;
+        value = (data->temp * TLV493D_T_MULT) + TLV493D_T_OFFSET;
         break;
     default:
         return -ENOTSUP;
