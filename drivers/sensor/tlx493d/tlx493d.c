@@ -9,33 +9,21 @@
 
 LOG_MODULE_REGISTER(tlx493d, CONFIG_SENSOR_LOG_LEVEL);
 
-/* Register addresses */
-#define TLX493D_REG_BX       0x00
-#define TLX493D_REG_BY       0x01
-#define TLX493D_REG_BZ       0x02
-#define TLX493D_REG_TEMP     0x03
-#define TLX493D_REG_BX2      0x04
-#define TLX493D_REG_FACTSET1 0x05
-#define TLX493D_REG_FACTSET2 0x06
-#define TLX493D_REG_FACTSET3 0x07
-#define TLX493D_REG_MOD1     0x11
-#define TLX493D_REG_VERS     0x5E
-#define TLX493D_REG_MOD2     0x13
+/* Register addresses from sample code */
+#define TLV493D_REG_B_X1      0x00    // X data MSB
+#define TLV493D_REG_B_Y1      0x01    // Y data MSB
+#define TLV493D_REG_B_Z1      0x02    // Z data MSB
+#define TLV493D_REG_TEMP1     0x03    // Temperature data MSB
+#define TLV493D_REG_B_X2      0x04    // X data LSB
+#define TLV493D_REG_B_Y2      0x04    // Y data LSB (same as X2)
+#define TLV493D_REG_B_Z2      0x05    // Z data LSB
+#define TLV493D_REG_TEMP2     0x06    // Temperature data LSB
+#define TLV493D_REG_FRAME     0x03    // Frame counter
 
-/* Additional register addresses */
-#define TLX493D_REG_RESET    0x00
-#define TLX493D_REG_CONFIG   0x10
-
-/* Configuration values */
-#define TLX493D_MOD1_DEFAULT     0x20
-#define TLX493D_MOD1_LOW_POWER   0x00
-#define TLX493D_MOD1_MASTER      0x20
-#define TLX493D_MOD2_TEMP_EN     0x80
-
-/* Conversion factors */
-#define TLX493D_CONV_XY          0.13f
-#define TLX493D_CONV_Z           0.13f
-#define TLX493D_CONV_TEMP        0.24f
+/* Configuration values from sample code */
+#define TLV493D_MODE_MASTER_CONTROLLED 0x00
+#define TLV493D_MEASUREMENT_DELAY      10
+#define TLV493D_B_MULT                 0.098f
 
 /* Calibration settings */
 #define TLX493D_CAL_SAMPLES    300
@@ -74,32 +62,34 @@ struct tlx493d_config {
 #define TLX493D_I2C_ADDR    0x5E
 #define TLX493D_I2C_RETRIES 3    // 通信リトライ回数
 
-/* Additional configuration values */
-#define TLX493D_RESET_VAL    0xFF
-#define TLX493D_MEASUREMENT_DELAY_MS 10
-
 static int tlx493d_read_data(const struct device *dev)
 {
     struct tlx493d_data *data = dev->data;
     const struct tlx493d_config *config = dev->config;
     uint8_t buf[7];
+    int ret;
 
-    /* Wait for measurement to complete */
-    k_msleep(TLX493D_MEASUREMENT_DELAY_MS);
+    /* Wait for measurement to complete (from sample) */
+    k_msleep(TLV493D_MEASUREMENT_DELAY);
 
-    if (i2c_burst_read_dt(&config->i2c, TLX493D_REG_BX, buf, sizeof(buf))) {
+    ret = i2c_burst_read_dt(&config->i2c, TLV493D_REG_B_X1, buf, sizeof(buf));
+    if (ret < 0) {
         LOG_ERR("Failed to read sensor data");
-        return -EIO;
+        return ret;
     }
 
-    /* Convert raw data to 12-bit signed values */
-    data->x = (((int16_t)buf[0]) << 4) | (buf[4] >> 4);
-    data->y = (((int16_t)buf[1]) << 4) | (buf[4] & 0x0F);
-    data->z = (((int16_t)buf[2]) << 4) | (buf[5] >> 4);
-    data->temp = (int16_t)buf[3];
+    /* Convert raw data using sample code format */
+    data->x = ((int16_t)buf[0] << 8) | ((buf[4] & 0xF0) >> 4);
+    data->y = ((int16_t)buf[1] << 8) | (buf[4] & 0x0F);
+    data->z = ((int16_t)buf[2] << 8) | ((buf[5] & 0x0F));
+    
+    /* Apply conversion factor from sample */
+    data->x = (float)data->x * TLV493D_B_MULT;
+    data->y = (float)data->y * TLV493D_B_MULT;
+    data->z = (float)data->z * TLV493D_B_MULT;
 
-    LOG_DBG("Raw data - X: %d, Y: %d, Z: %d, T: %d", 
-            data->x, data->y, data->z, data->temp);
+    LOG_DBG("Raw data - X: %.2f, Y: %.2f, Z: %.2f", 
+            (double)data->x, (double)data->y, (double)data->z);
     return 0;
 }
 
@@ -285,42 +275,27 @@ static int tlx493d_init(const struct device *dev)
 {
     const struct tlx493d_config *config = dev->config;
     struct tlx493d_data *data = dev->data;
-    uint8_t id, mod1, mod2;
+    uint8_t config_val;
 
     LOG_INF("Initializing TLX493D sensor...");
 
     if (!device_is_ready(config->i2c.bus)) {
-        LOG_ERR("I2C bus %s not ready", config->i2c.bus->name);
+        LOG_ERR("I2C bus not ready");
         return -ENODEV;
     }
 
-    /* Initial delay for I2C bus and sensor to stabilize */
+    /* Initial delay */
     k_msleep(100);
 
-    /* Configure master controlled mode */
-    if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD1, TLX493D_MOD1_MASTER)) {
-        LOG_ERR("Failed to set master mode");
+    /* Set master controlled mode as in sample */
+    config_val = TLV493D_MODE_MASTER_CONTROLLED;
+    if (i2c_reg_write_byte_dt(&config->i2c, TLV493D_REG_MOD1, config_val)) {
+        LOG_ERR("Failed to set master controlled mode");
         return -EIO;
     }
 
-    k_msleep(10);  // Wait between writes
-
-    /* Enable temperature measurement */
-    if (i2c_reg_write_byte_dt(&config->i2c, TLX493D_REG_MOD2, TLX493D_MOD2_TEMP_EN)) {
-        LOG_ERR("Failed to configure measurement mode");
-        return -EIO;
-    }
-
-    /* Wait for configuration to take effect */
-    k_msleep(50);
-
-    /* Verify configuration */
-    if (i2c_reg_read_byte_dt(&config->i2c, TLX493D_REG_MOD1, &mod1) ||
-        i2c_reg_read_byte_dt(&config->i2c, TLX493D_REG_MOD2, &mod2)) {
-        LOG_ERR("Failed to verify configuration");
-        return -EIO;
-    }
-    LOG_INF("Configuration - MOD1: 0x%02x, MOD2: 0x%02x", mod1, mod2);
+    /* Wait between mode changes */
+    k_msleep(TLV493D_MEASUREMENT_DELAY);
 
     /* Initialize state */
     data->x_prev = 0;
