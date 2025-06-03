@@ -36,6 +36,9 @@ Add the following to your device tree:
     tlx493d@5e {
         compatible = "infineon,tlx493d";
         reg = <0x5E>;
+        x-input-code = <1>;    /* X軸の入力コード */
+        y-input-code = <2>;    /* Y軸の入力コード */
+        z-input-code = <3>;    /* Z軸の入力コード */
         sensitivity = "1x";
         hysteresis = <100>;           /* 0.1 = 10% hysteresis */
         center-threshold = <400>;     /* 0.4 = 40% center deadzone */
@@ -51,6 +54,9 @@ Add the following to your device tree:
 - `hysteresis`: Hysteresis threshold in thousandths (default: 100 = 0.1)
 - `center-threshold`: Center deadzone threshold in thousandths (default: 400 = 0.4)
 - `calibration-samples`: Number of samples to take during calibration (default: 300)
+- `x-input-code`: Input code mapping for X-axis movement
+- `y-input-code`: Input code mapping for Y-axis movement
+- `z-input-code`: Input code mapping for Z-axis movement
 
 ### Configuration File Settings
 

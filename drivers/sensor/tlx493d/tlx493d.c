@@ -56,6 +56,9 @@ struct tlx493d_data {
 struct tlx493d_config {
     struct i2c_dt_spec i2c;
     uint8_t evt_type;
+    uint16_t x_input_code;
+    uint16_t y_input_code;
+    uint16_t z_input_code;
 };
 
 #define TLX493D_I2C_ADDR    0x5E
@@ -215,6 +218,21 @@ static void sensor_timer_handler(struct k_work *work)
         tlx493d_channel_get(dev, SENSOR_CHAN_DIE_TEMP, &val);
         float t = sensor_value_to_double(&val);
 
+        // 各軸の入力コードに応じた処理
+        if (config->x_input_code) {
+            LOG_INF("X[%d]: %d.%03d", config->x_input_code, 
+                    (int)x, (int)(x * 1000) % 1000);
+        }
+        if (config->y_input_code) {
+            LOG_INF("Y[%d]: %d.%03d", config->y_input_code,
+                    (int)y, (int)(y * 1000) % 1000);
+        }
+        if (config->z_input_code) {
+            LOG_INF("Z[%d]: %d.%03d", config->z_input_code,
+                    (int)z, (int)(z * 1000) % 1000);
+        }
+
+        // 従来のログ出力は evt_type に応じて表示
         switch (config->evt_type) {
         case EVT_TYPE_ABSOLUTE:
             LOG_INF("ABS: X: %d.%03d Y: %d.%03d Z: %d.%03d T: %d.%d",
@@ -333,6 +351,9 @@ static const struct sensor_driver_api tlx493d_api = {
     static const struct tlx493d_config tlx493d_config_##inst = {        \
         .i2c = I2C_DT_SPEC_INST_GET(inst),                             \
         .evt_type = DT_INST_PROP_OR(inst, evt_type, EVT_TYPE_DEFAULT), \
+        .x_input_code = DT_INST_PROP_OR(inst, x_input_code, 0),        \
+        .y_input_code = DT_INST_PROP_OR(inst, y_input_code, 0),        \
+        .z_input_code = DT_INST_PROP_OR(inst, z_input_code, 0),        \
     };                                                                   \
     DEVICE_DT_INST_DEFINE(inst,                                         \
                          tlx493d_init,                                   \

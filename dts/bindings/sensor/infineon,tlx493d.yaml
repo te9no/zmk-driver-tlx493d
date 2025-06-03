@@ -52,3 +52,18 @@ properties:
     required: false
     default: 300
     description: Number of samples to take during calibration
+
+  x-input-code:
+    type: int
+    required: false
+    description: Input code mapping for X-axis movement
+
+  y-input-code:
+    type: int
+    required: false
+    description: Input code mapping for Y-axis movement
+
+  z-input-code:
+    type: int
+    required: false
+    description: Input code mapping for Z-axis movement
