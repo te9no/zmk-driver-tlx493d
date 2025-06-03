@@ -25,6 +25,12 @@ LOG_MODULE_REGISTER(tlx493d, CONFIG_SENSOR_LOG_LEVEL);
 #define TLV493D_REG_MOD1      0x11    // Mode1 register
 #define TLV493D_REG_MOD2      0x13    // Mode2 register
 
+/* Register Map */
+#define TLV493D_WRITE_ADR    0x48
+#define TLV493D_READ_ADR     0x49
+#define TLV493D_FAST_MODE    0x02
+#define TLV493D_POWER_MODE   0x00
+
 /* Configuration values */
 #define TLV493D_MEASUREMENT_DELAY_MS   10  // Required delay between measurements
 #define TLV493D_ACCESS_MASTER          0x11    // Master controlled mode access value
@@ -34,6 +40,8 @@ LOG_MODULE_REGISTER(tlx493d, CONFIG_SENSOR_LOG_LEVEL);
 #define TLV493D_B_MULT                0.098f  // Magnetic field conversion factor (in mT)
 #define TLV493D_T_MULT                1.1f    // Temperature conversion factor
 #define TLV493D_T_OFFSET              315     // Temperature offset
+#define TLV493D_RESET_DELAY_MS        40
+#define TLV493D_STARTUP_DELAY_MS      100
 
 /* Calibration settings */
 #define TLX493D_CAL_SAMPLES    300
@@ -285,6 +293,8 @@ static int tlx493d_init(const struct device *dev)
 {
     const struct tlx493d_config *config = dev->config;
     struct tlx493d_data *data = dev->data;
+    uint8_t cmd;
+    int ret;
 
     LOG_INF("Initializing TLX493D sensor...");
 
@@ -294,37 +304,47 @@ static int tlx493d_init(const struct device *dev)
     }
 
     /* Initial delay */
-    k_msleep(100);
+    k_msleep(TLV493D_STARTUP_DELAY_MS);
 
-    /* Set access mode */
-    if (i2c_reg_write_byte_dt(&config->i2c, TLV493D_REG_ACCESS, TLV493D_ACCESS_MASTER)) {
-        LOG_ERR("Failed to set access mode");
-        return -EIO;
+    /* Enter power down mode first */
+    cmd = TLV493D_POWER_MODE;
+    ret = i2c_write_dt(&config->i2c, &cmd, 1);
+    if (ret < 0) {
+        LOG_ERR("Failed to enter power down mode");
+        return ret;
     }
-    k_msleep(10);
+    k_msleep(TLV493D_RESET_DELAY_MS);
 
-    /* Set master controlled mode */
-    if (i2c_reg_write_byte_dt(&config->i2c, TLV493D_REG_CONFIG, TLV493D_CONFIG_MASTER)) {
-        LOG_ERR("Failed to set master controlled mode");
-        return -EIO;
+    /* Switch to master controlled mode */
+    cmd = TLV493D_WRITE_ADR;
+    ret = i2c_write_dt(&config->i2c, &cmd, 1);
+    if (ret < 0) {
+        LOG_ERR("Failed to set master mode");
+        return ret;
     }
-    k_msleep(10);
+    k_msleep(TLV493D_RESET_DELAY_MS);
 
-    /* Enable temperature measurement */
-    if (i2c_reg_write_byte_dt(&config->i2c, TLV493D_REG_MOD2, TLV493D_MOD2_TEMP_EN)) {
-        LOG_ERR("Failed to enable temperature measurement");
-        return -EIO;
+    /* Enable fast mode and temperature */
+    cmd = TLV493D_FAST_MODE;
+    ret = i2c_write_dt(&config->i2c, &cmd, 1);
+    if (ret < 0) {
+        LOG_ERR("Failed to enable fast mode");
+        return ret;
     }
-
-    /* Wait for configuration to take effect */
-    k_msleep(50);
+    k_msleep(TLV493D_RESET_DELAY_MS);
 
     /* Initialize state */
     data->x_prev = 0;
     data->y_prev = 0;
     data->z_prev = 0;
 
-    /* Perform initial calibration */
+    /* Wait for sensor to stabilize */
+    k_msleep(TLV493D_STARTUP_DELAY_MS);
+
+    /* Initialize and start timer */
+    k_work_init_delayable(&sensor_timer, sensor_timer_handler);
+    k_work_schedule(&sensor_timer, K_MSEC(LOG_INTERVAL_MS));
+
     return tlx493d_calibrate(dev);
 }
 
