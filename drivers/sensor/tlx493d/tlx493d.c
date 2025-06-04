@@ -194,22 +194,24 @@ static int tlx493d_init(const struct device *dev) {
     return 0;
 }
 
-#define TLX493D_INIT(inst)                                           \
-    static struct tlx493d_data tlx493d_data_##inst = {               \
-        .i2c = I2C_DT_SPEC_INST_GET(inst),                           \
-    };                                                               \
-                                                                     \
-    static const struct tlx493d_config tlx493d_config_##inst = {     \
-        .polling_interval_ms = DT_INST_PROP(inst, polling_interval), \
-    };                                                               \
-                                                                     \
-    DEVICE_DT_INST_DEFINE(inst,                                      \
-                          tlx493d_init,                              \
-                          NULL, /* PM control */                     \
-                          &tlx493d_data_##inst,                      \
-                          &tlx493d_config_##inst,                    \
-                          POST_KERNEL,                               \
-                          CONFIG_SENSOR_INIT_PRIORITY,               \
-                          NULL);
+static const struct input_device_api tlx493d_input_api = {};
+
+#define TLX493D_INIT(inst)                                               \
+    static struct tlx493d_data tlx493d_data_##inst = {                  \
+        .i2c = I2C_DT_SPEC_INST_GET(inst),                             \
+    };                                                                   \
+                                                                        \
+    static const struct tlx493d_config tlx493d_config_##inst = {        \
+        .polling_interval_ms = DT_INST_PROP(inst, polling_interval),    \
+    };                                                                   \
+                                                                        \
+    DEVICE_DT_INST_DEFINE(inst,                                         \
+                         tlx493d_init,                                   \
+                         NULL,                                           \
+                         &tlx493d_data_##inst,                          \
+                         &tlx493d_config_##inst,                         \
+                         POST_KERNEL,                                    \
+                         CONFIG_INPUT_INIT_PRIORITY,                     \
+                         &tlx493d_input_api);
 
 DT_INST_FOREACH_STATUS_OKAY(TLX493D_INIT)
