@@ -1,26 +1,16 @@
 # Copyright (c) 2024 The ZMK Contributors
 # SPDX-License-Identifier: MIT
 
-config INPUT_TLX493D
+config TLX493D
     bool "TLX493D 3D magnetic sensor"
     depends on I2C && INPUT
     help
       Enable driver for Infineon TLX493D 3D magnetic sensor.
-      This sensor provides 3-axis magnetic field measurements
-      and can be used as an input device.
 
-if INPUT_TLX493D
-
-config TLX493D_THREAD_PRIORITY
-    int "Thread priority"
-    default 10
-    help
-      Priority of thread used by the driver to scan the sensor
-
-config TLX493D_THREAD_STACK_SIZE
-    int "Thread stack size"
-    default 1024
-    help
-      Stack size of thread used by the driver
-
-endif # INPUT_TLX493D
+if TLX493D
+    config TLX493D_POLLING_INTERVAL_MS
+        int "Polling interval in milliseconds"
+        default 20
+         help
+          Polling interval for reading data from TLX493D.
+endif # TLX493D

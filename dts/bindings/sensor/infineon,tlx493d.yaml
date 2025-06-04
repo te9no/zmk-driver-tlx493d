@@ -50,3 +50,9 @@ properties:
     required: false
     default: 300
     description: Number of samples for calibration
+
+  polling-interval:
+    type: int
+    required: false
+    default: 10
+    description: Polling interval in milliseconds (default 10ms = 100Hz)

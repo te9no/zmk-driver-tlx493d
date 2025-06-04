@@ -3,4 +3,4 @@
 
 zephyr_library()
 
-zephyr_library_sources_ifdef(CONFIG_INPUT_TLX493D tlx493d.c)
+zephyr_library_sources_ifdef(CONFIG_TLX493D tlx493d.c)
