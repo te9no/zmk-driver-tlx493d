@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rg:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(ZMK_CONFIG_NAME=zmk-config-roBa just --justfile ../../justfile --working-directory ../.. build roBa_R -S zmk-usb-logging)",
+      "WebFetch(domain:github.com)",
+      "Bash(grep:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "mcp__ide__getDiagnostics",
+      "mcp__deepwiki__ask_question",
+      "Bash(cp:*)",
+      "Bash(ZMK_CONFIG_NAME=zmk-config-MKB just --justfile ../../zmk-config/zmk-config-MKB-1/Justfile --working-directory ../.. build MKB_L_RZT -S zmk-usb-logging)",
+      "Bash(chmod:*)"
+    ],
+    "deny": []
+  }
+}

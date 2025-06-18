@@ -1,4 +1,3 @@
-name: zmk-driver-tlx493d
 build:
   cmake: .
   kconfig: Kconfig

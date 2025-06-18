@@ -1,0 +1,55 @@
+# TLX493D 3D Magnetic Sensor Driver
+
+config INPUT_TLX493D
+	bool "TLX493D 3D Magnetic Sensor"
+	default y
+	depends on DT_HAS_INFINEON_TLX493D_ENABLED
+	select INPUT
+	help
+	  Enable driver for Infineon TLX493D 3D magnetic sensor.
+	  This driver provides relative input events for X, Y movement
+	  and Z-axis scroll wheel functionality.
+
+config ZMK_INPUT_TLX493D_IDLE_SLEEPER
+	bool "TLX493D idle sleeper"
+	default y
+	depends on INPUT_TLX493D
+	help
+	  Enable ZMK activity state integration for TLX493D sensor.
+	  This automatically puts the sensor to sleep when ZMK is inactive.
+
+if INPUT_TLX493D
+
+config INPUT_TLX493D_POLLING_INTERVAL_MS
+	int "Polling interval in milliseconds"
+	default 10
+	range 1 1000
+	help
+	  Interval between sensor readings in milliseconds.
+	  Lower values provide more responsive input but consume more power.
+
+config INPUT_TLX493D_Z_THRESHOLD
+	int "Z-axis scroll threshold"
+	default 5
+	range 1 100
+	help
+	  Minimum Z-axis movement required to generate scroll events.
+	  Higher values reduce sensitivity but prevent unwanted scrolling.
+
+config INPUT_TLX493D_ROTATION_SCALER
+	int "Rotation sensitivity scaler"
+	default 20
+	range 1 100
+	help
+	  Scaling factor for Z-axis rotation to scroll conversion.
+	  Higher values reduce scroll sensitivity.
+
+config INPUT_TLX493D_LOG_LEVEL
+	int "Log level for TLX493D driver"
+	default 3
+	range 0 4
+	help
+	  Log level for TLX493D driver.
+	  0: Off, 1: Error, 2: Warning, 3: Info, 4: Debug
+
+endif # INPUT_TLX493D

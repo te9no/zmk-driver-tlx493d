@@ -1,0 +1,36 @@
+# Copyright (c) 2024 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: Infineon TLX493D 3D Magnetic Sensor
+
+compatible: "infineon,tlx493d"
+
+include: [i2c-device.yaml]
+
+properties:
+  reg:
+    default: [0x35]
+    description: |
+      I2C address of the TLX493D sensor.
+      Default address is 0x35. Alternative addresses are:
+      0x22, 0x44, 0x78
+  polling-interval-ms:
+    type: int
+    default: 10
+    description: |
+      Polling interval for sensor readings in milliseconds.
+      Lower values provide more responsive input but consume more power.
+
+  z-threshold:
+    type: int
+    default: 5
+    description: |
+      Minimum Z-axis movement required to generate scroll events.
+      Higher values reduce sensitivity but prevent unwanted scrolling.
+
+  rotation-scaler:
+    type: int
+    default: 20
+    description: |
+      Scaling factor for Z-axis rotation to scroll conversion.
+      Higher values reduce scroll sensitivity.
